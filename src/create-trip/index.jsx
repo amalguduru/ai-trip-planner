@@ -9,6 +9,7 @@ import { chatSession } from "@/service/AIModal";
 import { useState } from "react";
 import GooglePlacesAutocomplete from "react-google-places-autocomplete";
 import { toast } from "sonner";
+import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import {
   Dialog,
   DialogContent,
@@ -18,11 +19,14 @@ import {
 import { FaGoogle } from "react-icons/fa";
 import { useGoogleLogin } from "@react-oauth/google";
 import axios from "axios";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "@/service/firebaseConfig";
 
 function CreateTrip() {
   const [place, setPlace] = useState();
   const [formData, setFormData] = useState({});
   const [openDialog, setOpenDialog] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleInputChange = (name, value) => {
     setFormData({
@@ -30,10 +34,6 @@ function CreateTrip() {
       [name]: value,
     });
   };
-
-  // useEffect(() => {
-  //   console.log(formData);
-  // }, [formData]);
 
   const onGenerateTrip = async () => {
     const user = localStorage.getItem("user");
@@ -57,6 +57,8 @@ function CreateTrip() {
       return;
     }
 
+    setLoading(true);
+
     const FINAL_PROMPT = AI_PROMPT.replace(
       "{location}",
       formData?.location?.label
@@ -69,6 +71,21 @@ function CreateTrip() {
     console.log(FINAL_PROMPT);
     const result = await chatSession.sendMessage(FINAL_PROMPT);
     console.log(result?.response?.text());
+    setLoading(false);
+    saveAITrip(result?.response?.text());
+  };
+
+  const saveAITrip = async (TripData) => {
+    setLoading(true);
+    const user = JSON.parse(localStorage.getItem("user"));
+    const docId = Date.now().toString();
+    await setDoc(doc(db, "AITrips", docId), {
+      userSelection: formData,
+      tripData: JSON.parse(TripData),
+      userEmail: user?.email,
+      id: docId,
+    });
+    setLoading(false);
   };
 
   const login = useGoogleLogin({
@@ -183,7 +200,13 @@ function CreateTrip() {
 
       {/* Button */}
       <div className="flex justify-end my-10">
-        <Button onClick={onGenerateTrip}>Generate Trip</Button>
+        <Button disabled={loading} onClick={onGenerateTrip}>
+          {loading ? (
+            <AiOutlineLoading3Quarters className="h-7 w-7 animate-spin" />
+          ) : (
+            "Generate Trip"
+          )}
+        </Button>
       </div>
 
       {/* Google authentication */}
