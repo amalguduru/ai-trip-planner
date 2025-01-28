@@ -9,10 +9,20 @@ import { chatSession } from "@/service/AIModal";
 import { useState } from "react";
 import GooglePlacesAutocomplete from "react-google-places-autocomplete";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+} from "@/components/ui/dialog";
+import { FaGoogle } from "react-icons/fa";
+import { useGoogleLogin } from "@react-oauth/google";
+import axios from "axios";
 
 function CreateTrip() {
   const [place, setPlace] = useState();
   const [formData, setFormData] = useState({});
+  const [openDialog, setOpenDialog] = useState(false);
 
   const handleInputChange = (name, value) => {
     setFormData({
@@ -26,6 +36,13 @@ function CreateTrip() {
   // }, [formData]);
 
   const onGenerateTrip = async () => {
+    const user = localStorage.getItem("user");
+
+    if (!user) {
+      setOpenDialog(true);
+      return;
+    }
+
     if (
       !formData?.location ||
       !formData?.noOfDays ||
@@ -52,6 +69,33 @@ function CreateTrip() {
     console.log(FINAL_PROMPT);
     const result = await chatSession.sendMessage(FINAL_PROMPT);
     console.log(result?.response?.text());
+  };
+
+  const login = useGoogleLogin({
+    onSuccess: (codeResp) => {
+      // console.log(codeResp);
+      getUserProfile(codeResp);
+    },
+    onError: (error) => console.log(error),
+  });
+
+  const getUserProfile = (tokenInfo) => {
+    axios
+      .get(
+        `https://www.googleapis.com/oauth2/v1/userinfo?access_token=${tokenInfo?.access_token}`,
+        {
+          headers: {
+            Authorization: `Bearer ${tokenInfo?.access_token}`,
+            Accept: "Application/json",
+          },
+        }
+      )
+      .then((res) => {
+        console.log(res);
+        localStorage.setItem("user", JSON.stringify(res.data));
+        setOpenDialog(false);
+        onGenerateTrip();
+      });
   };
 
   return (
@@ -141,6 +185,28 @@ function CreateTrip() {
       <div className="flex justify-end my-10">
         <Button onClick={onGenerateTrip}>Generate Trip</Button>
       </div>
+
+      {/* Google authentication */}
+      <Dialog open={openDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogDescription>
+              <img src="/logo.svg" alt="logo" />
+              <h2 className="font-bold text-black mt-7 text-lg">
+                Sign in with Google
+              </h2>
+              <p>
+                We use Google authentication to securely log you into the app
+              </p>
+              <Button onClick={login} className="w-full mt-5">
+                {" "}
+                <FaGoogle />
+                Sign in with Google
+              </Button>
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
